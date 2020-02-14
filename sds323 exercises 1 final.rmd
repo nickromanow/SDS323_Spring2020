@@ -1,0 +1,356 @@
+---
+title: "SDS323 Exercises 1"
+output: pdf_document
+---
+Conner Callahan, Kate Patrick, Nick Romanow
+
+## Flights at ABIA
+
+```{r}
+library(ggplot2)
+library(mosaic)
+library(tidyverse)
+
+ABIA <- read.csv("~/GitHub/SDS323/data/ABIA.csv")
+
+#question: Which airport origin minimizes departure delays the best?
+#question: What day of the week and month have the most flights from Austin?
+
+fav_stats(ABIA$AirTime)
+
+#Most flights occur in January from Austin, otherwise there is a similar average amount of flights every month.
+hist(ABIA$Month, breaks=12, main="Flights per Month", xlab="Month", col="blue")
+
+flights_total = ABIA %>%
+  filter(Origin == 'AUS') %>%
+  group_by(Month) %>%
+  summarize(flights = count(Origin))
+
+```
+
+```{r}
+#Most flights occur during the middle of the week or on the weekends.
+weekly_total = ABIA %>%
+  filter(DepDelay >= '0') %>%
+  group_by(DayOfWeek) %>%
+  summarize(flights = count(Origin))
+
+
+plot(weekly_total, type='l', main="Total Flights from Austin Throughout the Week", xlab="Day of Week")
+
+#People tend to fly the most during the middle of the week, middle of the year, and middle of the month.
+boxplot(ABIA$DayOfWeek, ABIA$Month, ABIA$DayofMonth)
+
+#Most flights occur at the end of the year or during the summer months.
+
+```
+
+```{r}
+#On average, the median Arrival Time is about equal to the median scheduled Arrival time. There is more of a spread with actual arrival time, meaning there is more variation in arrival time versus that of scheduled arrival time. 
+newdata <- subset(ABIA, Origin == "AUS",
+                  select=Year:DepDelay)
+boxplot(newdata$ArrTime, newdata$CRSArrTime)
+```
+
+```{r}
+#On average, most flight delays occur on Sunday or Monday.
+ggplot(newdata, aes(x=DayOfWeek, y=DepDelay)) +
+  geom_bar(stat="identity")+
+  scale_y_continuous(limits = c(0, 2000), breaks = seq(0, 2000, by = 500))+
+  scale_x_continuous(limits = c(0, 7), breaks = seq(0, 7, by = 1))
+
+
+#This data set shows the average delays in departure from all of the airports.
+mean_Dep_Delay <- ABIA %>%
+  group_by(Origin) %>%
+  summarize(mean_Dep_Delay = mean(DepDelay, na.rm=TRUE))
+```
+
+```{r}
+#Almost all of the airports have a less than 40 minute departure delay. 
+ggplot(data = mean_Dep_Delay)+
+  geom_bar(mapping = aes(x=Origin, y=mean_Dep_Delay),
+           position="dodge", stat="identity")
+fav_stats(mean_Dep_Delay$mean_Dep_Delay)
+
+#airport's origin with the worst departure delay time from Austin
+Q3_depdelay <- subset(mean_Dep_Delay, mean_Dep_Delay = 15:69)
+
+fav_stats(Q3_depdelay$mean_Dep_Delay)
+boxplot(Q3_depdelay$mean_Dep_Delay, main="Longest 25% Departure Delays",
+        ylab="Time (minutes)")
+
+#It can be seen from this graph that the airport with the most departure delays is TYS, with a time of 68.3 minutes. 
+ggplot(Q3_depdelay, aes(x=Q3_depdelay$Origin, y=Q3_depdelay$mean_Dep_Delay)) +
+  geom_bar(position="stack", stat="identity")
+
+#best departure delay from Austin
+Q1_depdelay <- subset(mean_Dep_Delay, mean_Dep_Delay = 2:8)
+
+
+fav_stats(Q1_depdelay$mean_Dep_Delay)
+
+#It can be seen from this graph that the airport with the lowest average departure delay is OAK with 2.51 minutes. Based on this information, OAK is the best airport to fly out of.
+ggplot(Q1_depdelay, aes(x=Q1_depdelay$Origin, y=Q1_depdelay$mean_Dep_Delay)) +
+  geom_bar(position="stack", stat="identity")
+```
+```{r}
+#Almost all of the flights have an arrival delay of less than 40 minutes
+
+mean_Arr_delay <- ABIA %>%
+  group_by(Origin) %>%
+  summarize(mean_Arr_delay = mean(ArrDelay, na.rm=TRUE))
+
+ggplot(data = mean_Arr_delay)+
+  geom_bar(mapping = aes(x=Origin, y=mean_Arr_delay),
+           position="dodge", stat="identity")
+
+#airport's origin with worst arrival delay to Austin
+mean_Arr_delay <- ABIA %>%
+  group_by(Origin) %>%
+  summarize(mean_Arr_delay = mean(ArrDelay, na.rm=TRUE))
+
+
+fav_stats(mean_Arr_delay$mean_Arr_delay)
+boxplot(mean_Arr_delay$mean_Arr_delay, main="Average Arrival Delays into Austin", ylab="Time(minutes)")
+
+Q3_Arrdelay <- subset(mean_Arr_delay, mean_Arr_delay = 12.339:98)
+
+fav_stats(Q3_Arrdelay$mean_Arr_delay)
+boxplot(Q3_Arrdelay$mean_Arr_delay, main = "25% Worst Arrival Delay into Austin", ylab="Time (minutes)")
+
+#From this graph, it can be seen that the flights coming from TYS have the most arrival delays into the Austin airport. 
+ggplot(Q3_Arrdelay, aes(x=Q3_Arrdelay$Origin, y=Q3_Arrdelay$mean_Arr_delay)) +
+  geom_bar(position="stack", stat="identity")
+
+
+#best arrival time into Austin
+Q1_Arrdelay <- subset(mean_Arr_delay, mean_Arr_delay = -2.748837:1.952593 )
+
+fav_stats(Q1_Arrdelay$mean_Arr_delay)
+boxplot(Q1_Arrdelay$mean_Arr_delay, main="Top 25% Arrival Delays into Austin", ylab="Time (minutes)")
+
+#From this graph, it can be seen that flights coming from IND have the least amount of arrival delays, on average. 
+ggplot(Q1_Arrdelay, aes(x=Q1_Arrdelay$Origin, y=Q1_Arrdelay$mean_Arr_delay)) +
+  geom_bar(position="stack", stat="identity")
+
+```
+
+```{r}
+#There is a high correlation between a late arrival time and a late departure delay.
+cor.test(~ABIA$DepDelay+ABIA$ArrDelay, na.rm=TRUE)
+
+ggplot(data = ABIA)+
+  geom_point(mapping=aes(x=DepDelay, y=ArrDelay))
+
+#There are far more departure delays occuring in December than in any other month. 
+d4 <- ABIA %>%
+  group_by(Month) %>%
+  summarize(mean_DepDelay = mean(DepDelay,na.rm=TRUE))
+
+
+ggplot(d4, aes(x=d4$Month, y=d4$mean_DepDelay))+
+  geom_bar(position="dodge", stat="identity")
+
+#percentage of departure delays every day of the week: it can be seen that there are more departure delays on Saturday, but around 22% of flights have departure delays every day of the week.
+
+d6 <- ABIA %>%
+  group_by(DayOfWeek) %>%
+  summarize(delay_pct = sum(Origin=='yes')/n())
+
+  
+
+
+ggplot(ABIA, aes(x=ABIA$DayOfWeek, y=ABIA$DepDelay))+
+  geom_bar(position="dodge", stat="identity")
+
+
+#There is a low correlation between the day of the week and departure delays.
+cor_test(~ABIA$DayOfWeek+ABIA$DepDelay)
+```
+
+## Regression Practice - Creatine Levels
+
+1. The expected Creatinine clearance rate of a 55-year old is 113.7.
+
+```{r message=FALSE, warning=FALSE}
+creatinine <- read.csv("~/GitHub/SDS323/data/creatinine.csv")
+library(mosaic)
+library(tidyverse)
+
+lml = lm(creatclear ~ age, data = creatinine)
+coef(lml)
+
+147.8+(55*-0.62)
+```
+
+2. Creatinine clearance rate drops by .62 for every additional year of age.
+
+```{r message=TRUE, warning=FALSE}
+library(mosaic)
+library(tidyverse)
+
+lml = lm(creatclear ~ age, data = creatinine)
+coef(lml)
+```
+
+## Green Buildings
+
+Opening file, Header, Packages
+```{r Green: Open, Head, & Packages}
+filename<-"greenbuildings.csv"
+setwd("~/GitHub/SDS323/data")
+greenbuildings <- read.csv(filename)
+head(greenbuildings)
+library(tidyverse)
+library(knitr)
+library(mosaic)
+```
+
+While the developer's "data guru" correctly finds that green buildings charge a higher rent, he failed to account for several considerations that may call into question his findings. Both size and age are variables that could confound the green rent data, and the type of green rating a building attains may also affect rent. Finally, the data guru forgot to account for the time value of money when he predict they could recover their upfront costs in 7.7 years. 
+
+The rent for green buildings is statisitically higher than non-green buildings. This can be seen in the graph and linear regression below. The green_rating variable is statistically significant when regressed by itself against rent. We are 95% confident that the true coefficient for a green building is between 57¢ and $2.93 worth of rent increase per square foot. 
+This would result somewhere between 142,500 and 732,500 in additional revenue per year, with the estimated cost of building a green building at $5,000,000 up front.
+```{r}
+#cleaning
+greenbuildings$green_clean <- ifelse(greenbuildings$green_rating==1,"Green","Not")
+#Rent by green or not
+ggplot(data = greenbuildings) + 
+  geom_violin(aes(x=green_clean, y=Rent, fill=green_clean)) + 
+  ylim(c(0,100)) +
+  theme_bw(base_size=18) +
+  scale_fill_brewer(palette="Dark2") +
+  labs(title="Green and Non-Green Rent", 
+       y="Building Rent",
+       x = "Building Classification",
+       caption = "26 values removed") +
+  theme(legend.position="none")
+#model
+greenonly_mod <- lm(Rent~green_rating, data = greenbuildings)
+summary(greenonly_mod)
+confint(greenonly_mod, 'green_rating', level = .95)
+0.57*250000 #142500
+2.93*250000 #732500
+```
+
+However, this increase in rent can be explained by other, more significant, variables than green_rating. We started by regressing rent based on the variables we knew about the developer's new building: size, stories, age, and green_rating. Stories was insignificant, so we removed the variable. In the resulting model, green_rating was still statisitcally insignificant, but both size and age were statistically and practically significant in predicting rent. We ran the boxplots shown below to represent the difference in these variables between green and non-green buildings. Green buildings were typically younger and larger than the non-green buildings in the dataset, which may have resulted in the rents for those buildings being higher based on their size and age rather than their green status.
+```{r}
+#starting model
+base_mod <- lm(Rent~size+stories+age+green_rating, data = greenbuildings)
+summary(base_mod)
+#removestories
+base_mod <- lm(Rent~size+age+green_rating, data = greenbuildings)
+summary(base_mod)
+#Ages by Green status
+ggplot(data = greenbuildings) + 
+  geom_boxplot(aes(x=green_clean, y=age, fill=green_clean)) +
+  ylim(c(0,150)) +
+  theme_bw(base_size=18) +
+  scale_fill_brewer(palette="Dark2") +
+  labs(title="Green and Non-Green Ages", 
+       y="Building Age",
+       x = "Building Classification",
+       caption = "16 outlier values removed") +
+  theme(legend.position="none")
+#Sizes by Green status
+ggplot(data = greenbuildings) + 
+  geom_boxplot(aes(x=green_clean, y=size, fill=green_clean)) +
+              ylim(c(0,1500000)) +
+  theme_bw(base_size=18) +
+  scale_fill_brewer(palette="Dark2") +
+  labs(title="Green and Non-Green Sizes", 
+       y="Building Size",
+       x = "Building Classification",
+       caption = "51 outlier values removed") +
+  theme(legend.position="none")
+```
+
+The developer and her data guru also failed to consider the effect of attaining different kinds of green classification. Buildings with an Energystar rating typically charged higher rents than those with LEED green ratings. NO variables were statistically significant when we regressed known variables with green_type against rent. LEED and Energystar rated buildings have different density structures of rent, and this should be taken into consideration when planning the construction of a potentially green building.
+```{r}
+LEED <- subset(greenbuildings,LEED==1)
+Energystar <- subset(greenbuildings,Energystar==1)
+#Energystar higher than LEED
+summary(LEED$Rent)
+summary(Energystar$Rent)
+#model
+greenbuildings$green_type <-
+  ifelse(greenbuildings$LEED==1,"LEED",
+         ifelse(greenbuildings$Energystar==1,"Energystar",NA))
+green_mod <- lm(Rent~size+stories+age+green_type, data = greenbuildings, na.rm = TRUE)
+summary(green_mod)
+#Rent by LEED or Energystar
+ggplot(na.omit(greenbuildings)) + 
+  geom_violin(aes(x=green_type, y=Rent, fill=green_type)) + 
+  ylim(c(0,100)) +
+  theme_bw(base_size=18) +
+  scale_fill_brewer(palette="Greens") +
+  labs(title="Green Rent by Type", 
+       y="Building Rent",
+       x = "Green Classification",
+       caption = "1 value removed") +
+  theme(legend.position="none")
+```
+
+Lastly, the data guru forgot to account for the time value of money. The time he predict it would take to recover the cost was arounf 7.7 years, but the actual time would be much longer if you discount at the developer's cost of capital. This is necessary because it demonstrates the opportunity cost of using this capital investment elsewhere, for example, on another development that could potentially be built as a green building.
+
+All in all, the data guru correctly found that green buildings have a higher rent than non-green building in this dataset, but this finding may not be indicative of a causal relationship between green rating and rent. There are other variables with a greater impact on the rent a building can charge, such as age and size of the building. We are not convinced that making the building green would allow the developer to recover her cost by charging a higher rent in a timely enough way.
+
+
+## Milk Pricing Case Study
+
+Opening file and Viewing the header
+```{r}
+filename<-"milk.csv"
+setwd("~/GitHub/SDS323/data")
+milk <- read.csv(filename)
+head(milk)
+```
+Demand Model
+```{r}
+milk.demand <- lm(log(sales)~log(price), data = milk)
+summary(milk.demand)
+#Q = 4.721 - 1.619*P
+#P = (4.721 - Q) / 1.619
+#Beta = -1.619
+ggplot(data = milk) + 
+  geom_point(mapping = aes(x=log(sales), y=log(price)))  +
+  labs(title="Milk Demand", 
+       y="Log(Price [P])",
+       x = "Log(Sales [Q])")
+#Q = e^4.721 * P^-1.619
+```
+Optimization through Marginal Equations:
+
+  total.profit = (P - 1) * [e^4.721 * P^(-1.619)]
+              = 112.28(P-1) / P^1.619
+  marginal.profit = 181.782/P^2.619 - 69.502/P^1.619
+    0 = 181.782/P^2.619 - 69.502/P^1.619
+  optimal.P = 1619 / 619
+           = $2.62
+
+General Functions
+```{r}
+2.62-1 #$1.62
+#log(Q) = 4.721 - 1.619*log(P)
+4.721 - 1.619*log(2.62) #3.161621
+#log(Q) = 3.161621
+#Q = e^3.161621
+exp(3.161621) #23.60883
+#average proft
+1.62*23.60883 #$38.25
+curve((x-1)*110*x^(-1.62), from=2.6, to=2.65)
+```
+
+  As a profit-maximizing, price-setting merchant, you would charge a certain price for milk based on the maximization of the following total proft formula: total.profit = (P - 1) * [e^4.721 * P^(-1.619)]. This equation can be derived from the general total profit equation, which is total revenue (Q * P) minus total cost (Q * c). Quanity can be factored out, leaving total.profit = Q * (P - c). Price can represented as a function of quantity by solving for an ordinary least squares regression of the natural logarithms of Sales (Q) and Price (P). This equation can be plugged in for Q, leaving a total profit equation in terms of only P and c. Taking the derivative of total profit with regards to P yields marginal profit, which, when set equal to 0, will give the optimal price for maximizing profit. 
+
+  With a per-unit cost (c) of 1 dollar, a profit-maximizing seller would price milk at $2.62. 
+  At a this price, the store would sell, on average, around 23.6 cartons of milk at a gross margin of 2.62-1 = 1.62. The resulting average profit per day is 23.6*1.62 = $38.25 from milk sales.
+  
+Key Points:
+1. Net profit (N) can be calculated as quantity sold (Q) multiplied by the difference between price (P) and unit cost (c).
+   N = Q * (P - c)
+2. The equation representing units sold (Q) given a certain price (P) can be found by creating a linear regression between the natural logarithms of the variables.
+   Q = e^4.721 * P^-1.619
+3. The above equations can be combined by plugging in P as a function of Q:
+   N = (112.280 * P^-1.619) * (P - c)
+4. With this equation, N can be maximized by solving for a value of P with a given c. Taking the derivative of the equation in Point 3 with respect to P will result in an equation for marginal net profit, which can then be set equal to 0 to find the profit-maximizing price.
