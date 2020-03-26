@@ -1,0 +1,2039 @@
+---
+title: "Homework 2 Complete"
+output:
+  pdf_document: default
+---
+```{r}
+library(class)
+library(FNN)
+library(tidyverse)
+
+#Plot original data from sclass data to show relationship between the two variables before separating by trim level
+sclass <- read_csv("SDS323/data/sclass.csv")
+ggplot(data = sclass) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='darkgrey') + 
+  ylim(0, 300000)+
+  ggtitle("Price Given Mileage")
+summary(sclass)
+#The three variables we will be focusing on are the trim, mileage, and price. Mileage ranges from 1 to 488,525 while price varies from  599 to 299,000. The relationship between these two variables will be further analyzed by trim level after separating the data in the following steps. 
+```
+
+```{r}
+#In order to build a predictive model for price given mileage, we will separate the data based on trim. In the steps below, we separate data based on two trim levels: 350 and 65 AMG. 
+#Below is the separation of 350 AMG: 
+sclass350 = subset(sclass, trim == '350')
+dim(sclass350)
+summary(sclass350)
+na.omit(sclass350)
+
+#Below is the separation of 65 AMG: 
+sclass65AMG = subset(sclass, trim == '65 AMG')
+summary(sclass65AMG)
+dim(sclass65AMG)
+
+#Before doing the train-test split, here are two plots that show the data for each trim level. You can see the relationship between price and mileage for each trim level. 
+ggplot(data = sclass350) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='darkgrey')+
+  ggtitle("Price Given Mileage with 350 Trim")
+
+ggplot(data = sclass65AMG) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='darkgrey')+
+  ggtitle("Price Given Mileage with 65 Trim")
+
+#According to these plots, there seems to be more of an even scatter with 65 AMG and more of a break between points on the 350 AMG plot. In the following steps, we will run K nearest neighbors to build a predictive model for price based on mileage for each trim level. 
+```
+```{r}
+#Train-test split for 350 AMG trim level: We are looking for a model that gives the best explanation with the simplest model. We want to accomplish this by minimizing the out of sample RMSE and reducing the amount of bias and variance for the model. 
+N = nrow(sclass350)
+N_train = floor(0.8*N) 
+N_test = N - N_train
+
+train_ind = sort(sample.int(N, N_train, replace=FALSE))
+
+D_train = sclass350[train_ind,]
+D_train = arrange(D_train, mileage)
+D_test = sclass350[-train_ind,]
+
+y_train = D_train$price
+X_train = data.frame(mileage=jitter(D_train$mileage))
+X_test = data.frame(mileage=jitter(D_test$mileage))
+y_test = D_test$price
+
+#Running KNN test for various values of K to determine the optimal predictive model.This will start at K=2 and progress until an optimal value of K is found for the model. 
+#KNN = 2
+#The first step is to make predictions to the data frame. 
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn2 = knn.reg(train = X_train, test = X_test, y = y_train, k=2)
+
+#rmse calculation 
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn2 = knn2$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn2)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn2 = ypred_knn2
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn2), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 2)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+```{r}
+#K = 3
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn3 = knn.reg(train = X_train, test = X_test, y = y_train, k=3)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn3 = knn3$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn3)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn3 = ypred_knn3
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn3), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 3)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+```{r}
+#K = 4
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn4 = knn.reg(train = X_train, test = X_test, y = y_train, k=4)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn4 = knn4$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn4)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn4 = ypred_knn4
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn4), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 4)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+
+```{r}
+
+#K = 5
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn5 = knn.reg(train = X_train, test = X_test, y = y_train, k=5)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn5 = knn5$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn5)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn5 = ypred_knn5
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn5), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 5)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 6
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn6 = knn.reg(train = X_train, test = X_test, y = y_train, k=6)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn6 = knn6$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn6)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn6 = ypred_knn6
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn6), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 6)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 7
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn7 = knn.reg(train = X_train, test = X_test, y = y_train, k=7)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn7 = knn7$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn7)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn7 = ypred_knn7
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn7), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 7)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 8
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn8 = knn.reg(train = X_train, test = X_test, y = y_train, k=8)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn8 = knn8$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn8)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn8 = ypred_knn8
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn8), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 8)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 9
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn9 = knn.reg(train = X_train, test = X_test, y = y_train, k=9)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn9 = knn9$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn9)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn9 = ypred_knn9
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn9), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 9)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 6
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn6 = knn.reg(train = X_train, test = X_test, y = y_train, k=6)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn6 = knn6$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn6)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn6 = ypred_knn6
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn6), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 10)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+
+```{r}
+#K = 15
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn15 = knn.reg(train = X_train, test = X_test, y = y_train, k=15)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn15 = knn15$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn15)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn15 = ypred_knn15
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn15), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 15)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+
+
+
+
+#K = 30
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn30 = knn.reg(train = X_train, test = X_test, y = y_train, k=30)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn30 = knn30$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn30)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn30 = ypred_knn30
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn30), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 30)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+
+```
+
+```{r}
+#K = 50
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn50 = knn.reg(train = X_train, test = X_test, y = y_train, k=50)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn50 = knn50$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn50)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn50 = ypred_knn50
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn50), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 50)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 70
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn70 = knn.reg(train = X_train, test = X_test, y = y_train, k=70)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn70 = knn70$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn70)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn70 = ypred_knn70
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn70), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 70)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 80
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn80 = knn.reg(train = X_train, test = X_test, y = y_train, k=80)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn80 = knn80$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn80)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn80 = ypred_knn80
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn80), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 80)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 90
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn90 = knn.reg(train = X_train, test = X_test, y = y_train, k=90)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn90 = knn90$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn90)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn90 = ypred_knn90
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn90), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 90)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K=100
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn100 = knn.reg(train = X_train, test = X_test, y = y_train, k=100)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn100 = knn100$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn100)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn100 = ypred_knn100
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn100), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 100)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 120
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn120 = knn.reg(train = X_train, test = X_test, y = y_train, k=120)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn120 = knn120$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn120)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn120 = ypred_knn120
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn120), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 120)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn140 = knn.reg(train = X_train, test = X_test, y = y_train, k=140)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn140 = knn140$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn140)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn140 = ypred_knn140
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn140), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 140)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn150 = knn.reg(train = X_train, test = X_test, y = y_train, k=150)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn150 = knn150$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn150)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn150 = ypred_knn150
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn150), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 150)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K=175
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn175 = knn.reg(train = X_train, test = X_test, y = y_train, k=175)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn175 = knn175$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn175)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn175 = ypred_knn175
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn175), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 175)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K=190
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn190 = knn.reg(train = X_train, test = X_test, y = y_train, k=190)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn190 = knn190$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn190)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn190 = ypred_knn190
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn190), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 190)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K=210
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn210 = knn.reg(train = X_train, test = X_test, y = y_train, k=210)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn210 = knn210$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn210)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn210 = ypred_knn210
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn210), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 210)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K=230
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn230 = knn.reg(train = X_train, test = X_test, y = y_train, k=230)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn230 = knn230$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn230)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn230 = ypred_knn230
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn230), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 230)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K=250
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn250 = knn.reg(train = X_train, test = X_test, y = y_train, k=250)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn250 = knn250$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn250)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn250 = ypred_knn250
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn250), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 250)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K=300
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn300 = knn.reg(train = X_train, test = X_test, y = y_train, k=300)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn300 = knn300$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn300)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn300 = ypred_knn300
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn300), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 300)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#RMSE plot vs K nearest neighbors 350 trim level.
+N = nrow(sclass350)
+N_train = floor(0.8*N) 
+N_test = N - N_train
+
+train_ind = sort(sample.int(N, N_train, replace=FALSE))
+
+D_train = sclass350[train_ind,]
+D_train = arrange(D_train, mileage)
+D_test = sclass350[-train_ind,]
+
+y_train = D_train$price
+X_train = data.frame(mileage=jitter(D_train$mileage))
+X_test = data.frame(mileage=jitter(D_test$mileage))
+y_test = D_test$price
+library(foreach)
+
+k_grid = exp(seq(log(1), log(300), length=100)) %>% round %>% unique
+rmse_grid = foreach(K = k_grid, .combine='c') %do% {
+  knn_model = knn.reg(train = X_train, test = X_test, y = y_train, k=K)
+  rmse(y_test, knn_model$pred)
+}
+rmse_plot = plot(k_grid, rmse_grid, ylim=c(0,25000), main="RMSE vs KNN Plot")
+abline(rmse_plot)
+
+```
+```{r}
+#optimal K value for 350 AMG trim level 
+
+#K = 30
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn30 = knn.reg(train = X_train, test = X_test, y = y_train, k=30)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn30 = knn30$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn30)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn30 = ypred_knn30
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn30), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 30)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+
+#The value of K=30 is optimal for the 350 AMG trim level with an out of sample RMSE of 25924.26. This value represents that there is more bias with the plot but less variance surrounding it. Minimizing the standard deviation of the residuals (RMSE) is an important component in recognizing the most explicit and simple prediction model for the data. According to the plots, using a value of 30 for K shows predictions for the model that are close to the original data with less bias. With this being said, there may be more variance with a lower value of K than there would be for a larger KNN model, such as with K=4 or 5. 
+
+```
+
+```{r}
+#Train-test split for 65 AMG trim level: We are looking for a model that gives the best explanation with the simplest model. We want to accomplish this by minimizing the out of sample RMSE and reducing the amount of bias and variance for the model. 
+N = nrow(sclass65AMG)
+N_train = floor(0.8*N) 
+N_test = N - N_train
+
+train_ind = sort(sample.int(N, N_train, replace=FALSE))
+
+D_train = sclass65AMG[train_ind,]
+D_train = arrange(D_train, mileage)
+D_test = sclass65AMG[-train_ind,]
+
+y_train = D_train$price
+X_train = data.frame(mileage=jitter(D_train$mileage))
+X_test = data.frame(mileage=jitter(D_test$mileage))
+y_test = D_test$price
+
+#Running KNN test for various values of K to determine the optimal predictive model.This will start at K=2 and progress until an optimal value of K is found for the model. 
+#KNN = 2
+#The first step is to make predictions to the data frame. 
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn2 = knn.reg(train = X_train, test = X_test, y = y_train, k=2)
+
+#rmse calculation 
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn2 = knn2$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn2)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn2 = ypred_knn2
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn2), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 2)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+```{r}
+
+```
+
+```{r}
+#K = 3
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn3 = knn.reg(train = X_train, test = X_test, y = y_train, k=3)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn3 = knn3$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn3)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn3 = ypred_knn3
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn3), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 3)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 4
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn4 = knn.reg(train = X_train, test = X_test, y = y_train, k=4)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn4 = knn4$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn4)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn4 = ypred_knn4
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn4), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 4)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 5
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn5 = knn.reg(train = X_train, test = X_test, y = y_train, k=5)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn5 = knn5$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn5)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn5 = ypred_knn5
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn5), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 5)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 6
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn6 = knn.reg(train = X_train, test = X_test, y = y_train, k=6)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn6 = knn6$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn6)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn6 = ypred_knn6
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn6), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 6)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 7
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn7 = knn.reg(train = X_train, test = X_test, y = y_train, k=7)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn7 = knn7$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn7)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn7 = ypred_knn7
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn7), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 7)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 15
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn15 = knn.reg(train = X_train, test = X_test, y = y_train, k=15)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn15 = knn15$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn15)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn15 = ypred_knn15
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn15), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 15)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 30
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn30 = knn.reg(train = X_train, test = X_test, y = y_train, k=30)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn30 = knn30$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn30)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn30 = ypred_knn30
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn30), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 30)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 50
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn50 = knn.reg(train = X_train, test = X_test, y = y_train, k=50)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn50 = knn50$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn50)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn50 = ypred_knn50
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn50), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 50)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 60
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn60 = knn.reg(train = X_train, test = X_test, y = y_train, k=60)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn60 = knn60$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn60)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn60 = ypred_knn60
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn60), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 60)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r}
+#K = 80
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn80 = knn.reg(train = X_train, test = X_test, y = y_train, k=80)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn80 = knn80$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn80)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn80 = ypred_knn80
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn80), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 80)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+```
+
+```{r message=FALSE, warning=FALSE}
+#RMSE plot vs K nearest neighbors 65 AMG trim level.
+N = nrow(sclass65AMG)
+N_train = floor(0.8*N) 
+N_test = N - N_train
+
+train_ind = sort(sample.int(N, N_train, replace=FALSE))
+
+D_train = sclass65AMG[train_ind,]
+D_train = arrange(D_train, mileage)
+D_test = sclass65AMG[-train_ind,]
+
+y_train = D_train$price
+X_train = data.frame(mileage=jitter(D_train$mileage))
+X_test = data.frame(mileage=jitter(D_test$mileage))
+y_test = D_test$price
+library(foreach)
+library(FNN)
+
+k_grid = (seq(log(300), length=100)) %>% round %>% unique
+rmse_grid = foreach(K = k_grid, .combine='c') %do% {
+  knn_model = knn.reg(train = X_train, test = X_test, y = y_train, k=K)
+  rmse(y_test, knn_model$pred)
+}
+plot(k_grid, rmse_grid, log='x', main="RMSE vs KNN Plot")
+abline(h=rmse(y_test, ypred_knn100), col='red')
+```
+
+```{r}
+#Optimal value for K for 65 AMG trim level is 
+#K = 80
+lm1 = lm(price ~ mileage, data=D_train)
+lm2 = lm(price ~ poly(mileage, 2), data=D_train)
+knn80 = knn.reg(train = X_train, test = X_test, y = y_train, k=80)
+
+
+#rmse
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn80 = knn80$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn80)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn80 = ypred_knn80
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = mileage, y = ypred_knn80), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 80)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=mileage, y=ypred), color='red', size=1.5)
+
+#The optimal value of K for the 65 AMG trim level is K=80. With this value of K, the rmse is 32901.62, which is higher than other RMSE values for different levels of K. Similar to the 350 trim level, this represents the fact that bias is minimized with this level of K, but there may be more variance than with a smaller KNN model. With that being said, this level of K offers a better predictor for the model of data than a smaller KNN model would. 
+```
+```{r}
+#Conclusion: The 65 AMG level has an optimal value of K that is higher than the 350 trim level optimal value of K. This showcases that a lower trim level for these cars that are being analyzed often have more noise that affects the price given the mileage. More variables than just the trim level affect the price of the vehicle that are represented in the larger data set, but not the separations between the two trim levels. A lower trim uses more "neighbors" nearby in order to better predict the price of the car, meaning there can be more noise surrounding what imapcts the price. This also means it can be more evident that a higher trim level would generate a higher price, because it is generally a nicer car, whereas a lower trim level might require the presence of other variables to predict the price. 
+```
+
+### Problem 2 - Saratoga Houses
+
+## Question
+
+This analysis tries to examine and identify key indicators in home prices in Saratoga, New York. Homes have a nearly infinite number of attributes that may contribute to the value of the home, and this report seeks to find the most relevant for predicting what the value of a home is. 
+
+## Data
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(mosaic)
+data(SaratogaHouses)
+
+summary(SaratogaHouses)
+```
+
+There are 16 variables in a dataset of 1,728 observations. The objective is to predict the variable "Price" using some combination of the other 15 variables.
+
+## Method
+
+```{r message=FALSE, warning=FALSE}
+library(mosaic)
+
+n = nrow(SaratogaHouses)
+n_train = round(0.8*n)
+n_test = n - n_train
+
+rmse = function(y, yhat) {
+  sqrt( mean( (y - yhat)^2 ) )
+}
+
+rmse_vals = do(100)*{
+  
+  train_cases = sample.int(n, n_train, replace=FALSE)
+  test_cases = setdiff(1:n, train_cases)
+  saratoga_train = SaratogaHouses[train_cases,]
+  saratoga_test = SaratogaHouses[test_cases,]
+  
+  lm1 = lm(price ~ lotSize + bedrooms + bathrooms, data=saratoga_train)
+  lm2 = lm(price ~ . - sewer - waterfront - landValue - newConstruction, data=saratoga_train)
+  lm3 = lm(price ~ (. - sewer - waterfront - landValue - newConstruction)^2, data=saratoga_train)
+  lm4 = lm(price ~ . - sewer - landValue - newConstruction, data=saratoga_train)
+  lm5 = lm(price ~ . - sewer - waterfront - landValue, data=saratoga_train)
+  lm6 = lm(price ~ . - sewer - landValue, data=saratoga_train)
+  lm7 = lm(price ~ lotSize + age + livingArea + pctCollege + 
+                     bedrooms + fireplaces + bathrooms + rooms + heating + fuel +
+                     centralAir + lotSize:heating + livingArea:rooms + newConstruction + livingArea:newConstruction, data=saratoga_train)
+  lm8 = lm(price ~ (lotSize + age + livingArea + pctCollege + 
+             bedrooms + fireplaces + bathrooms + rooms + heating + fuel +
+             centralAir + lotSize:heating + livingArea:rooms + newConstruction + livingArea:newConstruction)^2, data=saratoga_train)
+  lm9 = lm(price ~ . - sewer - landValue - rooms, data=saratoga_train)
+  lm10 = lm(price ~ . - sewer - landValue - bathrooms - bedrooms, data=saratoga_train)
+  lm11 = lm(price ~ (. - sewer - landValue)^2, data=saratoga_train)
+  
+  yhat_test1 = predict(lm1, saratoga_test)
+  yhat_test2 = predict(lm2, saratoga_test)
+  yhat_test3 = predict(lm3, saratoga_test)
+  yhat_test4 = predict(lm4, saratoga_test)
+  yhat_test5 = predict(lm5, saratoga_test)
+  yhat_test6 = predict(lm6, saratoga_test)
+  yhat_test7 = predict(lm7, saratoga_test)
+  yhat_test8 = predict(lm8, saratoga_test)
+  yhat_test9 = predict(lm9, saratoga_test)
+  yhat_test10 = predict(lm10, saratoga_test)
+  yhat_test11 = predict(lm11, saratoga_test)
+  
+  c(rmse(saratoga_test$price, yhat_test1),
+    rmse(saratoga_test$price, yhat_test2),
+    rmse(saratoga_test$price, yhat_test3),
+    rmse(saratoga_test$price, yhat_test4),
+    rmse(saratoga_test$price, yhat_test5),
+    rmse(saratoga_test$price, yhat_test6),
+    rmse(saratoga_test$price, yhat_test7),
+    rmse(saratoga_test$price, yhat_test8),
+    rmse(saratoga_test$price, yhat_test9),
+    rmse(saratoga_test$price, yhat_test10),
+    rmse(saratoga_test$price, yhat_test11))
+}
+```
+To find the best model for predicting home price, we create a train-test split, and use the training data to to create models and test their accuracy by calculating the Root Mean Square Error (RMSE) of each model.
+
+## Results
+
+```{r}
+rmse_vals
+colMeans(rmse_vals)
+boxplot(rmse_vals)
+
+Xtrain = model.matrix(~ . - (price + sewer + landValue) - 1, data=saratoga_train)
+Xtest = model.matrix(~ . - (price + sewer + landValue) - 1, data=saratoga_test)
+ytrain = saratoga_train$price
+ytest = saratoga_test$price
+
+scale_train = apply(Xtrain, 2, sd)
+Xtilde_train = scale(Xtrain, scale = scale_train)
+Xtilde_test = scale(Xtest, scale = scale_train)
+
+head(Xtrain, 2)
+
+library(FNN)
+K = 10
+
+knn_model = knn.reg(Xtilde_train, Xtilde_test, ytrain, k=K)
+rmse(ytest, knn_model$pred)
+
+library(foreach)
+k_grid = exp(seq(log(1), log(300), length=100)) %>% round %>% unique
+rmse_grid = foreach(K = k_grid, .combine='c') %do% {
+  knn_model = knn.reg(Xtilde_train, Xtilde_test, ytrain, k=K)
+  rmse(ytest, knn_model$pred)
+}
+
+plot(k_grid, rmse_grid, log='x', ylim=c(60000, 90000))
+abline(h=rmse(ytest, yhat_test6), col="red")
+```
+After running 100 train-tests splits, we find the average RMSE for each model. We find that Linear Model #6 is the best model because it has the lowest average RMSE. This model is a modification of the original, medium sized model which factors in Lot Size, age,  living area, percent of college students in the area, number of bedrooms, number of	fireplaces, number of bathrooms, number of rooms, heating type, fuel, and central air system.  The modification adds the variables Waterfront and New Constrution. Meanwhile, we exclude the land value and the sewer system from the model. We assume that some of the price already reflects the land value, so it doesn't explain any additional difference in home prices. We exclude the sewer system variable, because most home-buyers are unlikely to closely examine the type of sewer system in a potential home.
+
+We observe that including interactions between variables makes the model more inaccurate (LM-11). We compare the model to a K-nearest neighbors model. We find that the best of the linear models (LM-6) is still better than all of the K-nearest neighbors models generated.
+
+## Conclusion
+
+An improved model for predicting home prices is a linear model that includes Lot Size, age, living area, percent of college students in the area, number of bedrooms, number of	fireplaces, number of bathrooms, number of rooms, heating type, fuel, central air system, Waterfront, and New Construction. This linear model excludes interactions and is slightly more accurate than the most accurate k-nearest neighbors models.
+
+### Problem 3 - Viral News
+
+# Regression
+###
+Testing different models out of a set of potentially meaningful predictors for number of shares (virality).
+```{r}
+
+require(MASS)
+require(leaps)
+#create set of linear models
+online_news <- read_csv("SDS323/data/online_news.csv")
+mysubsets <-regsubsets(shares ~ . - url, data=online_news)
+#rank by adjusted R-squared
+plot(mysubsets, scale="adjr2", col="orange")
+```
+
+Resulting Model
+```{r}
+model1 <- lm(shares ~ n_tokens_content + num_hrefs + num_self_hrefs + num_imgs + num_videos + average_token_length + self_reference_avg_sharess + avg_negative_polarity, data=online_news)
+summary(model1)
+adjr2_model <- lm(shares ~ num_hrefs + data_channel_is_lifestyle + data_channel_is_entertainment + data_channel_is_bus + data_channel_is_socmed + data_channel_is_tech + data_channel_is_world + self_reference_min_shares + max_negative_polarity, data=online_news)
+summary(adjr2_model)
+```
+
+Creating the testing and training sets
+```{r}
+#random sample from data for train set
+random_sample<-sample(seq_len(nrow(online_news)), size = 35000)
+head(random_sample)
+train<-online_news[random_sample,]
+#use the rest for test
+test<-online_news[-random_sample,]
+#training model
+training_adjr2_model <- lm(shares ~ n_tokens_content + num_hrefs + num_self_hrefs + num_imgs + num_videos + average_token_length + self_reference_avg_sharess + avg_negative_polarity, data=train)
+summary(training_adjr2_model)
+```
+
+Creating set of model predictions on the testing set
+```{r}
+#generate results
+predicted<-predict.lm(training_adjr2_model,newdata=test)
+hist(predicted)
+```
+
+
+Coverting to binary (viral or not) form:
+```{r}
+bin_predicted = ifelse(predicted >= 1400,1,0)
+bin_actual = ifelse(test$shares >= 1400,1,0)
+#creating confusion matrix
+conf_viral = table(bin_actual, bin_predicted)
+conf_viral
+```
+
+Finding average values:
+```{r}
+correct_neg <- mean(c(2,1,2,2,2))
+false_neg <- mean(c(3,1,0,1,0))
+correct_pos <- mean(c(2478,2473,2450,2453,2482))
+false_pos <- mean(c(2161,2169,2192,2188,2160))
+```
+
+
+Converting average values into confusion matrix:
+```{r}
+library(knitr)
+library(kableExtra)
+avg_conf_viral <- data.frame(
+  Actually_Viral = c("No", "Yes"),
+  Predicted_Not = c(correct_neg,false_neg),
+  Predicted_Viral = c(false_pos,correct_pos)
+)
+kable(avg_conf_viral, caption = "Confusion Matrix") %>% row_spec(0,bold=FALSE) %>% kable_styling() 
+#total error rate
+(false_neg+false_pos)/nrow(test) #46.83%
+#false positive rate
+false_pos/(false_pos+correct_neg) #99.91%
+#false negative rate
+false_neg/(false_neg+correct_pos) #0.04%
+```
+This linear model just barely outperforms the null model if the null model were to predict all articles to go viral. This means that the linear probability model we derived is not very useful, but that result is what we expected with an adjusted R-squared of only 0.0106. The model's total error rate is 46.51%, false positive rate is 99.91%, and false negative rate is 0.04%. This linear model predicts all but a few of the articles to viral. The reason that our error rate is below 50% (the expected error rate for random guesses) is there are simply more viral articles than not in the population.
+
+
+###
+# Classification
+###
+Create a new binary variable (viral or not):
+```{r}
+online_news$viral = ifelse(online_news$shares > 1400, 1, 0)
+```
+
+Test possible predictor combinations for predicting this new variable:
+```{r}
+require(MASS)
+require(leaps)
+#create set of linear models - remove weekend b/c colinear
+mybinsubsets <-regsubsets(viral ~ . - url - is_weekend, data=online_news)
+#rank by adjusted R-squared
+plot(mybinsubsets, scale="adjr2", col="orange")
+```
+
+Resulting Model
+```{r}
+binary_model <- lm(viral ~ num_hrefs + num_keywords + data_channel_is_entertainment + data_channel_is_bus + data_channel_is_socmed + data_channel_is_world + weekday_is_saturday + weekday_is_sunday + global_rate_positive_words, data=online_news, family = "binomial")
+summary(binary_model)
+```
+
+Creating the testing and training sets
+```{r}
+#random sample from data for train set
+random_bin_sample<-sample(seq_len(nrow(online_news)), size = 35000)
+head(random_bin_sample)
+bin_train<-online_news[random_bin_sample,]
+#use the rest for test
+bin_test<-online_news[-random_bin_sample,]
+#training model
+training_binary_model <- lm(viral ~ num_hrefs + num_keywords + data_channel_is_entertainment + data_channel_is_bus + data_channel_is_socmed + data_channel_is_world + weekday_is_saturday + weekday_is_sunday + global_rate_positive_words, data=bin_train, family = "binomial")
+summary(training_binary_model)
+```
+
+Creating set of probability predictions on the testing set
+```{r}
+#generate results
+class_predicted<-predict.glm(training_binary_model,newdata=bin_test,type = "response")
+hist(class_predicted)
+viral_predict = ifelse(class_predicted >= .5,1,0)
+hist(viral_predict)
+```
+
+Comparing predictions to actual virality:
+```{r}
+viral_actual = ifelse(bin_test$viral==1,1,0)
+#creating confusion matrix
+class_conf_viral = table(viral_actual, viral_predict) 
+class_conf_viral
+```
+
+Finding average values:
+```{r}
+class_correct_neg <- mean(c(1389,1365,1348,1419,1450))
+class_false_neg <- mean(c(818,834,771,821,784))
+class_correct_pos <- mean(c(1487,1486,1550,1479,1439))
+class_false_pos <- mean(c(950,959,975,925,971))
+```
+
+
+Converting average values into confusion matrix:
+```{r}
+library(knitr)
+library(kableExtra)
+bin_avg_conf_viral <- data.frame(
+  Actually_Viral = c("No", "Yes"),
+  Predicted_Not = c(class_correct_neg,class_false_neg),
+  Predicted_Viral = c(class_false_pos,class_correct_pos)
+)
+kable(bin_avg_conf_viral, caption = "Confusion Matrix") %>% row_spec(0,bold=FALSE) %>% kable_styling() 
+#total error rate
+(class_false_neg+class_false_pos)/nrow(bin_test) #37.93%
+#false positive rate
+class_false_pos/(class_false_pos+class_correct_neg) #40.68%
+#false negative rate
+class_false_neg/(class_false_neg+class_correct_pos) #35.12%
+```
+The classification model is more successful than the linear model and far outperformed the null model as both the false negative and false positive error rates are below 50%. This model may be useful, but it is not very accurate or predictive with an adjusted R-squared of 0.0810. The model's total error rate is 37.93%, false positive rate is 40.68%, and false negative rate is 35.12%. The classification model is more evenly split in its predictions that the regression model, predicting more articles to go viral than not which mirrors the data set.
+
+###
+#Summary
+###
+The Classification approach (threshold first and regress second) performs better than the Regression approach (regress first and threshold second). This approach fits the problem better because Mashable is look for a yes or no response on if each article they publish goes viral, which ultimately comes down to a set of probabilities. By framing this question as a logistic regression, each predictor is given the chance to affect the probability that an article with certain features will reach 1400 shares (going viral) rather than just attempting to predict how many shares an article will have. The classification approache proved to deliver a more useful and accurate model, with a total error rate of 37.93% compared to 46.51% and adjusted R-squared of 0.0810 compared to 0.0106. The Regression model predicted that nearly all articles would go viral, making it nearly useless.
