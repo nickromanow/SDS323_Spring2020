@@ -1,0 +1,432 @@
+---
+title: "HW3 Complete"
+output: pdf_document
+---
+```{r}
+#Problem 1: The overall goal of this problem is to create the best predictive model for the greenbuildings data set in order to project the differences in rent between green buildings and non-green buildings. In order to do this, I combined the LEED and Energystar certifications into one green subset to better understand the differences between green and non-green buildings. 
+
+library(tidyverse)
+library(FNN)
+
+greenbuildings <- read.csv("~/GitHub/Class Folder/SDS323/data/greenbuildings.csv")
+green <- subset(greenbuildings, green_rating==1)
+not_green <- subset(greenbuildings, green_rating==0)
+
+#In order to build a predictive model, I first ran KNN regression to fit a linear model to predict the price of rent including size as a predictor. This was the basis for building the model that I will eventually use to predict rent. 
+
+N = nrow(green)
+N_train = floor(0.8*N) 
+N_test = N - N_train
+
+train_ind = sort(sample.int(N, N_train, replace=FALSE))
+
+D_train = green[train_ind,]
+D_train = arrange(D_train, size)
+D_test = green[-train_ind,]
+
+y_train = D_train$Rent
+X_train = data.frame(size=jitter(D_train$size))
+X_test = data.frame(size=jitter(D_test$size))
+y_test = D_test$Rent
+
+lm1 = lm(Rent ~ size, data=D_train)
+lm2 = lm(Rent ~ poly(size, 2), data=D_train)
+knn2 = knn.reg(train = X_train, test = X_test, y = y_train, k=2)
+
+#rmse calculation 
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+ypred_lm1 = predict(lm1, X_test)
+ypred_lm2 = predict(lm2, X_test)
+ypred_knn2 = knn2$pred
+
+rmse(y_test, ypred_lm1)
+rmse(y_test, ypred_lm2)
+rmse(y_test, ypred_knn2)
+
+
+#attach predictions to data frame
+D_test$ypred_lm2 = ypred_lm2
+D_test$ypred_knn2 = ypred_knn2
+
+p_test = ggplot(data = D_test) + 
+  geom_point(mapping = aes(x = size, y = Rent), color='lightgrey') + 
+  labs(title="Figure 1")
+  theme_bw(base_size=18)
+p_test
+
+p_test + geom_point(aes(x = size, y = ypred_knn2), color='red')
+
+#KNN variances 
+knn_model = knn.reg(X_train, X_train, y_train, k = 15)
+
+D_train$ypred = knn_model$pred
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = size, y = Rent), color='lightgrey') + 
+  labs(title="Figure 2")
+  theme_bw(base_size=18) 
+p_train + geom_path(mapping = aes(x=size, y=ypred), color='red', size=1.5)
+
+#These figures show the drawback to using KNN, because size is only one variable affecting the rent. While the model could include several other variables and continue predicting values and RMSE, this is a time-consuming process.
+
+```
+```{r}
+#In order to find the best predictive models, forward selection was used to determine the most important and statistically significant variables to use in the model. After completing the addition of all variables in the model, it was determined that the variables most statistically significant are: cluster, size, empl_gr, stories, net, amenities, hd_total, total_dd, precipitation, gas costs, electricity costs, and cluster rent. 
+
+lm_new <- lm(Rent ~ cluster + size + empl_gr +
+               stories + net + amenities+
+               hd_total07 + total_dd_07 +
+               Precipitation + Gas_Costs + Electricity_Costs +
+               cluster_rent, data = greenbuildings)
+summary(lm_new)
+
+#forward selection process: 
+lm1 <- lm(Rent ~ cluster, data = greenbuildings)
+summary(lm1)
+
+lm2 <- lm(Rent ~ cluster + CS_PropertyID, data = greenbuildings)
+summary(lm2)
+
+lm3 <- lm(Rent ~ cluster + CS_PropertyID + size, data = greenbuildings)
+summary(lm3)
+
+lm4 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr, data = greenbuildings)
+summary(lm4)
+
+lm5 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate, data = greenbuildings)
+summary(lm5)
+
+lm6 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+          + stories, data = greenbuildings)
+summary(lm6)
+
+lm7 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+          + stories + age, data = greenbuildings)
+summary(lm7)
+
+lm8 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+          + stories + age + renovated, data = greenbuildings)
+summary(lm8)
+
+lm9 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+          + stories + age + renovated + class_a, data = greenbuildings)
+summary(lm9)
+
+lm10 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+          + stories + age + renovated + class_a + class_b, data = greenbuildings)
+summary(lm10)
+
+lm11 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating, data = greenbuildings)
+summary(lm11)
+
+lm12 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating + net, data = greenbuildings)
+summary(lm12)
+
+lm13 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating + net +
+             amenities, data = greenbuildings)
+summary(lm13)
+
+
+lm14 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating + net +
+             amenities + cd_total_07, data = greenbuildings)
+summary(lm14)
+
+lm14 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating + net +
+             amenities + cd_total_07 + hd_total07, data = greenbuildings)
+summary(lm14)
+
+lm15 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating + net +
+             amenities + cd_total_07 + hd_total07 + total_dd_07, data = greenbuildings)
+summary(lm15)
+
+lm16 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating + net +
+             amenities + cd_total_07 + hd_total07 + total_dd_07 +
+             Precipitation, data = greenbuildings)
+summary(lm16)
+
+lm17 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating + net +
+             amenities + cd_total_07 + hd_total07 + total_dd_07 +
+             Precipitation + Gas_Costs, data = greenbuildings)
+summary(lm17)
+
+lm18 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating + net +
+             amenities + cd_total_07 + hd_total07 + total_dd_07 +
+             Precipitation + Gas_Costs + Electricity_Costs, data = greenbuildings)
+summary(lm18)
+
+lm19 <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating + net +
+             amenities + cd_total_07 + hd_total07 + total_dd_07 +
+             Precipitation + Gas_Costs + Electricity_Costs +
+             cluster_rent, data = greenbuildings)
+summary(lm19)
+
+lm_new <- lm(Rent ~ cluster + size + empl_gr +
+               stories + net + amenities+
+               hd_total07 + total_dd_07 +
+               Precipitation + Gas_Costs + Electricity_Costs +
+               cluster_rent, data = greenbuildings)
+summary(lm_new)
+
+#According to this model that only includes the statistically significant variables at a .05 level, the cluster level has the most influence on price of rent. Green certification was found to not be statistically significant, but it will later be analyzed after finding the best predictive model. The following steps show the process of finding the predictive model that is best used for rent prices. 
+
+# Split into training and testing sets
+n = nrow(greenbuildings)
+n_train = round(0.8*n)  
+n_test = n - n_train
+train_cases = sample.int(n, n_train, replace=FALSE)
+test_cases = setdiff(1:n, train_cases)
+green_train = greenbuildings[train_cases,]
+green_test = greenbuildings[test_cases,]
+
+# Fit to the training data
+train_lm19 = lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+                + stories + age + renovated + class_a + class_b + green_rating + net +
+                  amenities + cd_total_07 + hd_total07 + total_dd_07 +
+                  Precipitation + Gas_Costs + Electricity_Costs +
+                  cluster_rent, data = green_train)
+train_lm_new = lm(Rent ~ cluster + size + empl_gr +
+                    stories + net + amenities+
+                    hd_total07 + total_dd_07 +
+                    Precipitation + Gas_Costs + Electricity_Costs +
+                    cluster_rent, data = green_train)
+train_lm_new2 = lm(log(Rent) ~ cluster + size + empl_gr +
+                            stories + net + amenities+
+                            hd_total07 + total_dd_07 +
+                            Precipitation + Gas_Costs + Electricity_Costs +
+                            cluster_rent, data = green_train)
+train_lm_new3 = lm(Rent ~ (cluster + size + empl_gr +
+                                stories + net + amenities+
+                                hd_total07 + total_dd_07 +
+                                Precipitation + Gas_Costs + Electricity_Costs +
+                                cluster_rent)^2, data = green_train)
+
+# Predictions out of sample
+ypred1 = predict(train_lm19, green_test)
+ypred2 = predict(train_lm_new, green_test)
+ypred3 = predict(train_lm_new2, green_test)
+ypred4 = predict(train_lm_new3, green_test)
+
+
+summary(ypred1)
+summary(ypred2)
+summary(ypred3)
+summary(ypred4)
+
+#Based on the above process, the predictive model that will be used to find the price of rent is the lm19 that includes all variables except green_type. This model will be used below to find the average price increase when a green certification is present. According to this predictive model, rent costs an average of $28.25, with about a $14 IQR. 
+
+#average rent increase with green certification using lm19 
+lm_green <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating + net +
+             amenities + cd_total_07 + hd_total07 + total_dd_07 +
+             Precipitation + Gas_Costs + Electricity_Costs +
+             cluster_rent, data = green)
+summary(lm_green)
+lm_green
+lm_notgreen <- lm(Rent ~ cluster + CS_PropertyID + size + empl_gr + leasing_rate
+           + stories + age + renovated + class_a + class_b + green_rating + net +
+             amenities + cd_total_07 + hd_total07 + total_dd_07 +
+             Precipitation + Gas_Costs + Electricity_Costs +
+             cluster_rent, data = not_green)
+summary(lm_notgreen)
+lm_notgreen
+
+mean(green$Rent)
+mean(not_green$Rent)
+
+boxplot(green$Rent, not_green$Rent)
+
+
+ggplot(data = greenbuildings)+
+  geom_violin(mapping = aes(x=green_rating, y = Rent), color = 'green')
+
+#The figures below picture the difference in rent prices with or without a green certification. According to the predictive model, the green-certified building begins at a higher intercept, showing a higher rent starting place. CLuster has less of an effect on a green certified building, but renovation increases rent on a larger scale when the building is green certified. On average, rent is $1.74 per square foot more on a green certified building than one without a certification. Buildings without green certifications have a wider spread in rent differentials, due to the effects of the other variables that are more statistically significant. 
+
+#Conclusion: While rent per square foot is higher on average on a green certified building, it is not as significant as some other variables and choices that people have when renting a building. If the goal were to reduce cost, I would look at other variables than green certification before making a decision. 
+
+```
+
+```{r}
+#Problem 2:
+#1.	Running a regression on crime and police from different cities would just exemplify a correlation rather than a causation. Based on this information, people would infer that a decrease in crime would be caused by an increase in police, or some other relationship that is not in truth that straightforward. In the podcast, this is one of the mistakes most people make when using statistics to make decisions. Just because there might be a relationship or correlation between two variables that is represented in a regression does not mean that one variable causes the outcome. In the example of crime and number of policemen, there could be other noise that is helping to cause the relationship between the two variables. It would also be difficult to determine whether or not one variable causes the outcome of the other; whether or not more police cause less crime or more crime causes more police.
+#2.	The researchers at UPENN found data on crime in Washington DC by tracking alerts for potential terrorist attacks. When there was a higher alert for a potential terrorist attack, the mayor placed more police on the streets compared to days when there were lower alerts. It was used as an experiment because it was not enacted because of crime rates, but instead used alerts for potential terrorist attacks. According to the table, on days with a higher potential terrorist attack alert, there is a lower crime rate while controlling METRO ridership. 
+#3.	They had to control METRO ridership because if people were not riding the metros, therefore traveling places, there would be fewer chances for crime to occur, so therefore less crime. This does not paint an entirely accurate picture when searching for the relationship between crime and police. Controlling METRO ridership helps explain that more police negatively impacts crime rates. In the podcast, they mention that this may not be entirely accurate because on high alert days, criminals themselves may be afraid and not want to go outside and perform their crimes. There would also be fewer citizens out and about on a day of high alerts, so fewer people to commit these crimes on. 
+#4.	In this table, the researchers are showing crime in different locations and whether or not one location is impacted more by high alert days than others. They used interactions between location and high alert days; their results show that district 1 is most affected by this alert. The other districts still show a negative impact on crime rate, but not at the same level of magnitude as district 1. 
+
+```
+
+# 3) Wine Problem
+
+## Question
+
+This data provides 11 chemical attributes of wine along with a quality rating and classification as white or red. We analyze the data of the chemical properties to first try to classify the wines as white or red and second to try to predict the quality ratings based on those chemical properties.
+
+## Method
+
+We use both clustering and principal components analysis (PCA) to attempt to categorize the wines.
+
+### Clustering:
+
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+library(LICORS)  # for kmeans++
+library(foreach)
+library(mosaic)
+wine <- read.csv("~/GitHub/Class Folder/SDS323/data/wine.csv")
+
+X = wine[,-(12:13)]
+head(X)
+X = scale(X, center=TRUE, scale=TRUE)
+
+mu = attr(X,"scaled:center")
+sigma = attr(X,"scaled:scale")
+
+clust2 = kmeanspp(X, k=2, nstart=25)
+
+clust2$center[1,]*sigma + mu
+clust2$center[2,]*sigma + mu
+```
+
+### PCA:
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+wine <- read.csv("~/GitHub/Class Folder/SDS323/data/wine.csv")
+
+wine.type = wine$color
+wine.quality = wine$quality
+
+X = wine[,-(12:13)]
+X = scale(X, center=TRUE, scale=TRUE)
+PCAWine = prcomp(X, scale=TRUE)
+plot(PCAWine)
+
+biplot(PCAWine)
+
+scores = PCAWine$x
+```
+
+## Results
+
+We compare the scatterplots generated by clustering and by PCA. We can also compare these scatterplots to the true classification by color according to the dataset.
+
+For the cluster and original scatterplots, we use total sulfur dioxide and fixed acidity for the x and y axis becayse these variables most clearly show the variations in wine. Likewise, for the PCA plots, we use components 1 and 2 because they show the data most clearly.
+
+### Color Scatterplots:
+
+Clustering:
+```{r}
+qplot(total.sulfur.dioxide, fixed.acidity, data=wine, color=factor(clust2$cluster))
+```
+
+PCA:
+```{r}
+qplot(scores[,1], scores[,2], color=wine.type, xlab='Component 1', ylab='Component 2')
+```
+
+Original:
+```{r}
+qplot(total.sulfur.dioxide, fixed.acidity,  data=wine, color=factor(color))
+```
+
+### Quality Scatterplots
+
+We also try to identify patterns between the chemical make-up of the wines and their quality ratings. Because the wines are rated in whole numbers between 1 and 10, we can put these plots side-by-side to look for differences between each level of quality.
+
+Clustering:
+```{r}
+qplot(total.sulfur.dioxide, fixed.acidity, data=wine, facets=~wine$quality, color=factor(clust2$cluster))
+```
+
+PCA:
+```{r}
+qplot(scores[,1], scores[,2], facets=~wine.quality, color=wine.type, xlab='Component 1', ylab='Component 2')
+```
+
+Original:
+```{r}
+qplot(total.sulfur.dioxide, fixed.acidity, facets=~wine$quality, data=wine, color=wine$color)
+```
+
+## Results
+
+For categorizing wines as red or white, principal components analysis (PCA) is better at clearly classifying wines. The scatterplots for clustering show considerable overlap for red and white wines. This makes sense because wines share many chemical properties regardless of their different colors. Therefore, there are overlapping factors in both red and white wines. Clustering based upon chemical properties would be insufficient because clusters must be mutually exclusive. PCA identifies the most meaningful differentiating properties while also tolerating overlapping attributes.
+
+However, both clustering and PCA are insufficient to categorize wines by quality rating based on chemical identifiers. Wines seem to have a similar spread of chemical properties at every rating level. Thus, wine quality seems to be driven by non-chemical factors or chemical factors that are too subtle to be detected through either method of categorization.
+
+# 4) Social Marketing
+
+## Question
+
+How can social media be used to identify market segments for a product?
+
+## Method
+
+We standardize the data before running the clustering algorithims. This enables us to identify groups of customers based on common interest. These interests can later be used to tailor marketing approaches.
+
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+library(LICORS)
+library(foreach)
+library(mosaic)
+
+tweets=read.csv("~/GitHub/Class Folder/SDS323/data/social_marketing.csv")
+summary(tweets)
+
+x=tweets[,-(1:1)]
+Z = scale(x, center=TRUE, scale=TRUE)
+head(Z)
+
+mu = attr(Z,"scaled:center")
+sigma = attr(Z,"scaled:scale")
+
+clust = kmeanspp(Z, k=4, nstart=25)
+
+clust$center[1,]*sigma + mu
+clust$center[2,]*sigma + mu
+clust$center[3,]*sigma + mu
+clust$center[4,]*sigma + mu
+```
+
+## Results
+
+Based upon the key factors in each cluster, we construct scatterplots that identify intersecting interests. 
+
+Here are three scatterplots that identify possible market segments:
+
+### Travel and Politics
+```{r}
+qplot(travel, politics, data=tweets, color=factor(clust$cluster))
+```
+
+### Health_nutrition and Cooking
+```{r}
+qplot(cooking, health_nutrition, data=tweets, color=factor(clust$cluster))
+```
+
+### Parenting and College_Uni
+```{r}
+qplot(college_uni, parenting, data=tweets, color=factor(clust$cluster))
+```
+
+## Conclusions
+
+The first two graphs above are used to show co-relation, i.e. a significant cluster in the upper right quadrant of the plot shows that people in that cluster are highly interest in both topics. In the third, graph, we see two distinct clusters in the bottom right and upper left quadrants. Here are the ramifications of each graph for marketing strategies:
+
+Travel and Politics: There is a high concentration of people tweeting about both travel and politics. This might be an indicator of the common socioeconomic status of consumers of this product. It might also point to particular vocations that require lots of travel for work and have a connection to politics, such as journalists or businesspeople. This information may justify placing ads in the online and print editions of political news sources, such as the New York Times. Moreover, the compan might also consider having the product sold in airports or at newsstands.
+
+Health_Nutrition and Cooking: It may be unsurprising that people interest in health and nutrition are consumers of a nutrition supplement. However, the relationship with cooking may also point to possible marketing strategies. The company could send samples to cooking bloggers who would help promote the product. Also, selling this product in high-end grocery stores (like Central Market or Whole Foods) may be successful, because its shoppers are likely both interest in nutrition and cooking.
+
+Parenting and College_Uni: This graph shows two distinct segments that might help understand the general age of people who consume this product. There is one significant cluster among people who tweet often about parenting but seldom about college. This might lead us to conclude that consumers of this product tend to be older, since there is no consistent pattern among people who tweet about college. This inference of age can help the company decide where to sell its products and where to post advertisements.
