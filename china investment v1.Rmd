@@ -1,0 +1,290 @@
+---
+title: "China Investment Project"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# Patterns in Chinese Foreign Investment
+End-of-Semester Project by Kate Patrick and Nick Romanow
+
+## Abstract
+
+Even before the global COVID-19 pandemic, China has drawn lots of attention for its growing economic influence around the world. This has prompted questions about what opportunities Chinese investment provides to businesses and what possible threats or issues may arise for recipient countries. **What are some key opportunities and threats for countries thar receive investment from China?** This first part on opportunities is examined by Kate Patrick, who approaches the problem from her background in business and finance by running a regression to find what influences the amount of investment. This second part on threats is examined by Nick Romanow, who approaches this topic from interests in national security and political science and examines possible groupings of recipient countries to establish commonalities.
+
+
+We analyze data that has been collected and published by the American Enterprise Institute, called the **China Global Investment Tracker**. The full dataset is assessible here: <https://www.aei.org/china-global-investment-tracker/>. This dataset tracks every foreign investment from China since 2005. It includes the investor, amount, month and year, sector and subsector, country and region, as well as whether it is classified as a a Belt and Road Initiative or Greenfield investment.
+
+
+## Part I - Opportunities.
+
+Foreign Direct Investment is an investment made by a company or individual from one country to another. Common sources of FDI include the opening of a new factory in a different country to outsource production, or simply expanding current business practices to other countries. FDI has become increasingly prevalent in a globalized economy, affecting the economic balances of countries who accept FDI and those that seek FDI. In the past fifteen years, Chinese companies have increasingly invested in other countries, which helps exert their influence on foreign economies. This project will analyze the sectors of the economy that are most targeted by Chinese investment as well as identify potential threats due to this very influence. 
+
+### Methodology
+
+In order to discover trends in Chinese investment into foreign countries during this time period, the data was modeled using a series of ggplots and divided into numerous subsets. This process is further outlined in the Results section. After creating these figures, a linear model was created to predict the amount of investment given the existence of a specific variable. Different linear models were created, and using a train-test split and out of sample predictions, the root mean squared error was minimized to determine an appropriate predictor of the amount of investment. 
+
+### Results
+
+As seen in the bar chart below, the sector with the largest amount of investments is in the energy sector.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(foreach)
+library(readr)
+chinainvest <- read_csv("~/011 College/SDS323/chinainvest.csv")
+
+ggplot(data = chinainvest, aes(x=Sector, y=Amount))+
+  geom_bar(stat='identity')+
+  coord_flip()+
+  labs(title = "Amount of Investment by Sector")
+sector_summ = chinainvest %>%
+  group_by(Sector)  %>%  
+  summarize(Amount.mean = mean(Amount)) 
+sector_summ = mutate(sector_summ, Amount.z = (Amount.mean - mean(Amount.mean))/sd(Amount.mean))
+
+ggplot(sector_summ, aes(x=reorder(Sector, Amount.z), y=Amount.z)) + 
+  geom_bar(stat='identity') + 
+  labs(title="Investment Amount by Sector", 
+       caption="Source: chinainvest data set in R",
+       y="Investment Amount (z-score)",
+       x = "Sector") + 
+  theme(axis.text.x = element_text(angle=90, vjust=0.6))
+
+```
+In the facet plots below, it can be seen that energy has steadily been invested in over the past fifteen years, while other sectors such as agriculture or transport have had spikes in some years.
+```{r}
+ggplot(data = chinainvest) + 
+  geom_col(mapping = aes(x = Year, y = Amount)) + 
+  facet_wrap(~ Sector, nrow = 5)+
+  labs(title = "Investment Amount over time by Sector")
+```
+
+Logistics contains the largest average investment amount of 1234.29, even though energy attracts the highest total investment amounts.
+
+```{r echo=FALSE}
+sector_summ = chinainvest %>%
+  group_by(Sector)  %>%  
+  summarize(Amount.mean = mean(Amount)) 
+
+ggplot(sector_summ, aes(x=reorder(Sector, Amount.mean), y=Amount.mean)) + 
+  geom_bar(stat='identity') + 
+  coord_flip()+
+  labs(title = "Mean Investment Amount by Sector",
+       x = "Mean Investment Amount",
+       y = "Sector")
+```
+
+As seen below, Europe, the Middle East, and South America receive the most investment from Chinese companies. South America receives the largest average amount of investment, 1017.11. 
+
+```{r echo=FALSE}
+
+ggplot(data = chinainvest) + 
+  geom_col(mapping = aes(x = Year, y = Amount)) + 
+  facet_wrap(~ Region, nrow = 5)+
+  labs(title = "Investments by Region over Time")
+
+```
+
+```{r echo=FALSE}
+chinainvest %>%
+  group_by(Country) %>%
+  summarize(mean_Amount = mean(Amount, na.rm=TRUE),
+            sd_Amount = sd(Amount, na.rm=TRUE))
+top_country <- subset(chinainvest, Amount >4000)
+ggplot(data = top_country)+
+  geom_col(mapping = aes(x = Year, y = Amount))+
+  facet_wrap(~ Country, nrow=6)+
+  labs(title = "Countries with Largest Investment Amounts")
+```
+
+```{r echo=FALSE}
+energy_data <- subset(chinainvest, Sector == "Energy")
+
+ggplot(data = energy_data)+
+  geom_col(mapping = aes(x = Year, y = Amount))+
+  facet_wrap(~ Region, nrow=5)+
+  labs(title = "Energy Investment by Region")
+summary(energy_data$Amount)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+n = nrow(chinainvest)
+n_train = round(0.8*n)  
+n_test = n - n_train
+train_cases = sample.int(n, n_train, replace=FALSE)
+test_cases = setdiff(1:n, train_cases)
+invest_train = chinainvest[train_cases,]
+invest_test = chinainvest[test_cases,]
+
+# Fit to the training data - show summary of each linear model
+lm1 = lm(Amount ~ Sector + Region + Year, data=invest_train)
+lm2 = lm(Amount ~ Sector, data=invest_train)
+lm3 = lm(Amount ~ Sector + Region + Month + Year, data = invest_train)
+
+# Predictions out of sample
+yhat_test1 = predict(lm1, invest_test)
+yhat_test2 = predict(lm2, invest_test)
+yhat_test3 = predict(lm3, invest_test)
+
+rmse = function(y, yhat) {
+  sqrt( mean( (y - yhat)^2 ) )
+}
+
+# Root mean-squared prediction error
+rmse(invest_test$Amount, yhat_test1)
+rmse(invest_test$Amount, yhat_test2)
+rmse(invest_test$Amount, yhat_test3)
+```
+
+### Conclusion
+
+Over time, the sector that attracts the largest amount of Chinese investment is energy. However, the average investment amount is largest in the logistics industry. This could represent one-time investments that set up the roots of an investment, while energy requires continued investment in regions once a natural resource reserve is located. This argument carries with the graph of z-scores by sector, because the average investment amount stays within one standard deviation of the mean, whereas with logistics or agriculture, that score is much higher. Over time, energy has steadily received investment while logistics and agriculture have received “spikes” of investment. 
+
+Europe, the Middle East, and South America are the three regions that receive the most investment from Chinese companies. The least amount of energy investment occurs in the United States. Switzerland has received the largest average investment amount of 3622.94, while most investments are generally smaller and occur over time. The average amount of investment in energy is 987.70. 
+
+After finding a model that predicts the Investment Amount, it was discovered that the most important variable is Sector. This model has an adjusted R-squared of .018, a p-value of less than .05, and a root mean squared error value of 1206.163 when the train/test split was conducted. 
+
+## Part II - Threats
+
+The combination of China's authoritarian government and its growing economic influence create concern that authoritarian practices might spread in conjunction with the spread of Chinese investment. This analysis cannot assess what China's intentions are, but instead, it tries to identify patterns and connections.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(knitr)
+library(foreach)
+library(readr)
+
+chinainvest <- read.csv("~/011 College/SDS323/chinainvest.csv")
+
+recipients <- chinainvest %>%
+  group_by(Country) %>%
+  summarize(sum(Amount))
+
+```
+
+
+### Methodology
+
+To identify commonalities between countries that receive Chinese investment, clustering is used. The following four-cluster model showed the most useful insights.
+
+```{r echo=FALSE}
+rownames(recipients) = recipients$Country
+X = recipients[,-(1:1)]
+X = scale(X, center=TRUE, scale=TRUE)
+rownames(X) = recipients$Country
+
+regions <- chinainvest %>%
+  group_by(Region) %>%
+  summarize(sum(Amount))
+
+mu = attr(X,"scaled:center")
+sigma = attr(X,"scaled:scale")
+```
+
+
+### Four Groups
+```{r echo=FALSE}
+clust3 = kmeans(X, 4, nstart=25)
+
+clust3$center[1,]*sigma + mu
+clust3$center[2,]*sigma + mu
+clust3$center[3,]*sigma + mu
+clust3$center[4,]*sigma + mu
+
+which(clust3$cluster == 1)
+which(clust3$cluster == 2)
+which(clust3$cluster == 3)
+which(clust3$cluster == 4)
+```
+
+Here are some investment profiles by particular countries:
+
+### United States
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+USA <- subset(chinainvest, Country=="USA")
+
+ggplot(data = USA)+
+  geom_col(mapping = aes(x = Sector, y = Amount))+
+  coord_flip()
+```
+
+### Australia
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+Australia <- subset(chinainvest, Country=="Australia")
+
+ggplot(data = Australia)+
+  geom_col(mapping = aes(x = Sector, y = Amount))+
+  coord_flip()
+```
+
+### Democratic Republic of the Congo
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+DRC <- subset(chinainvest, Country=="Democratic Republic of the Congo")
+
+ggplot(data = DRC)+
+  geom_col(mapping = aes(x = Sector, y = Amount))+
+  coord_flip()
+```
+
+### Russia
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+Russia <- subset(chinainvest, Country=="Russian Federation")
+
+ggplot(data = Russia)+
+  geom_col(mapping = aes(x = Sector, y = Amount))+
+  coord_flip()
+```
+
+
+## Conclusions
+
+When countries are divided into two groups, a "rich countries club" forms that includes Australia, Brazil, Britain, Canada, Germany, Switzerland, and the United States and another group of every other country. In the three-cluster model, the United States becomes its own cluster and the rich countries club is joined by Russia and singapore. This shows that there is a large gap in investment between countries that are already highly developed and all of the middle and low income countries.
+
+The four-cluster model shows the most interesting and surprising groupings. Again, the United States is in its own cluster, which shows the immense interconnectivity between the Chinese and American economies. Another cluster shows the same "rich countries club" as the two-cluster model, minus the U.S.. However, a third group shows an interesting mix of rich and poor countries and democracies and non-democracies. This group includes highly-developed countries like the Netherlands and South Korea with war-torn countries like the Democratic Republic of the Congo and Iraq.
+
+According to Freedom House, here are the classifications of electoral democracies for this fourth group[^1]:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(readr)
+DemList <- read_csv("~/011 College/SDS323/2020DemocracyList.csv")
+view(DemList)
+```
+
+- Argentina: Yes
+- Chile: Yes
+- Congo: No
+- Finland: Yes
+- France: Yes
+- India: Yes
+- Indonesia: Yes
+- Iraq: No
+- Italy: Yes
+- Kazakhstan: No
+- Malaysia: No
+- Netherlands: Yes
+- Nigeria: No
+- Pakistan: No
+- Peru: Yes
+- Russia: No
+- Singapore: No
+- South Africa: Yes
+- South Korea: Yes
+- Sweden: Yes
+
+[^1]: Source: Freedom House 2020 Electoral Democracy Ratings -  <https://freedomhouse.org/report/freedom-world/2020/leaderless-struggle-democracy>
+
+Chinese investment varies by country, but common threads exist that may provide insight for Chinese decision-making. First, Chinese investment has a large focus on the United States, with more investment in the U.S. than any other region except for Europe. Second, China does not appear to tailor its investment to any particular type of regimes, and may in fact invest more in rich, democratic countries than poor, authoritarian ones. 
+
+Interestingly, behind high-income economic powers, China heavily invests in conflict-ridden zones at similar rates as stable, European and Asian countries. In these non-democratic countries, Chinese investment typically focuses on the Energy or Metals sectors. As shown earlier, Metals and Energy are both invested in slightly above average, but these investments often occur in less developed and less democratic states.
+
+### Implications
+
+Clustering helps demonstrate groups of countries that both confirm and contradict pre-existing theories about international relations. For example, the group of democracies that receives the highest amount of Chinese investment is a modified sort of G-7. These groupings may be useful for a basis for multilateral diplomacy; they help establish which countries may have common interests in regard to their economic relationship with China. 
+
+Moreover, comparing sector profiles highlights challenges that face some countries that receive a high-level of Chinese investment. High investment in countries with weak political institutions mat worsen problems such as corruption, inequality, and the "resource curse". This insight is useful for organizations like the World Bank who can push for reform in exchange for investment.
+
+There is already lots of research on the economic impact of China's rise. This report does not present any new findings, but it reaffirms the extreme complexity of China's relationships with the rest of the world. 
